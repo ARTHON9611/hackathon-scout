@@ -102,16 +102,8 @@ def write_artifacts(summary: dict, slot_label: str, sheet_url: str):
         urgent_html = ("<h3>Closing in the next 0-4 days (0)</h3>"
                        "<p>Nothing urgent — all deadlines are 5+ days out.</p>")
 
-    groups_html = ""
-    for plat, rows in by_platform.items():
-        if not rows:
-            continue
-        groups_html += f"<h3>{plat} ({len(rows)})</h3>" + _table(rows)
-
     html = f"""<h2>Hackathon Scout – {slot_label}</h2>
 {urgent_html}
-<h3>All hackathons by platform (sorted: soonest closing first)</h3>
-{groups_html}
-<p>Full sheet: <a href='{sheet_url}'>Open Google Sheet</a></p>"""
+<p>Full sheet (all hackathons by platform, soonest first): <a href='{sheet_url}'>Open Google Sheet</a></p>"""
     (DATA / "email.html").write_text(html, encoding="utf-8")
     return summary
