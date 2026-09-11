@@ -1,0 +1,30 @@
+# Hackathon Scout – production config (edit without touching code)
+run:
+  max_devpost_pages: 6        # 9 per page in their API
+  max_devfolio_pages: 3
+  max_dorahacks_details: 40   # cap detail fetches per run (DoraHacks focus, but bounded)
+  request_timeout: 20
+  delay_seconds: 1.0
+  workers: 5
+
+filters:
+  ai_keywords: ["ai", "artificial intelligence", "machine learning", "llm", "genai", "ai/ml", "ai agents", "deep learning", "ml"]
+  blockchain_keywords: ["blockchain", "web3", "crypto", "ethereum", "smart contract", "smart contracts", "defi", "solidity", "pqc", "token"]
+  # DoraHacks tags map directly (most reliable signal there)
+  dorahacks_ai_tags: ["ai"]
+  dorahacks_blockchain_tags: ["crypto", "crypto / pqc", "blockchain", "web3", "defi"]
+
+sheets:
+  ai_tab: "AI"
+  blockchain_tab: "Blockchain"
+  meta_tab: "_Meta"
+  header: ["Hackathon Name", "Platform", "Tech Stack", "Status", "Prize Pool", "Link", "Last_Updated"]
+
+dorahacks:
+  # L1 prod JSON API (reverse-engineered from Nuxt bundle 2026-09):
+  #   GET https://dorahacks.io/api/v1/hub/hackathons?page=N&pageSize=100
+  # NOTE: kong-api.tophacker.com is the stale legacy backend — do NOT use.
+  # Keep polling polite (AWS WAF throttles): pageSize=100, ~2s between pages.
+  api: "https://dorahacks.io/api/v1/hub/hackathons"
+  page_size: 100
+  max_pages: 10

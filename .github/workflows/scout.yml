@@ -1,0 +1,122 @@
+name: Hackathon Scout
+
+on:
+  schedule:
+    # 9 AM + 7 PM IST = 03:30 + 13:30 UTC
+    - cron: "30 3,13 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: scout
+  cancel-in-progress: false
+
+jobs:
+  scout:
+    runs-on: ubuntu-22.04  # pinned for lifelong stability
+    timeout-minutes: 15
+    outputs:
+      scout_outcome: ${{ steps.run.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run scout (9AM/7PM IST slot label)
+        id: run
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          DORAHACKS_SEED_URLS: ${{ secrets.DORAHACKS_SEED_URLS }}
+          SLOT_LABEL: ${{ github.event_name == 'schedule' && 'scheduled IST slot' || 'manual run' }}
+        run: python -m src.main
+
+      - name: Upload artifacts (raw + summaries)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-data-${{ github.run_number }}
+          path: |
+            data/raw_*.json
+            data/summary.json
+            data/whatsapp.txt
+            data/email.html
+            data/dryrun_rows.json
+          if-no-files-found: warn
+
+      # ---------- SUCCESS PATH: WhatsApp only, email = fallback ----------
+      - name: WhatsApp success ping
+        id: wa_ok
+        if: steps.run.outcome == 'success'
+        continue-on-error: true
+        env:
+          PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+        run: |
+          MSG=$(cat data/whatsapp.txt)
+          # urlencode via python
+          ENC=$(python -c "import urllib.parse,sys; print(urllib.parse.quote(open('data/whatsapp.txt',encoding='utf-8').read()))")
+          RESP=$(curl -s -G "https://api.callmebot.com/whatsapp.php" --data-urlencode "phone=$PHONE" --data-urlencode "text=$MSG" --data-urlencode "apikey=$APIKEY" --max-time 30)
+          echo "$RESP"
+          echo "$RESP" | grep -qi "message queued\|sent" || (echo "CallMeBot did not confirm queue" && exit 1)
+
+      - name: Email fallback (only if WhatsApp failed)
+        if: steps.run.outcome == 'success' && steps.wa_ok.outcome == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[Scout fallback] WhatsApp failed – summary inside"
+          to: ${{ secrets.MAIL_TO }}
+          from: Hackathon Scout
+          html_body: file://data/email.html
+
+      # ---------- FAILURE PATH: BOTH WhatsApp + Email ----------
+      - name: WhatsApp failure alert
+        id: wa_fail
+        if: steps.run.outcome == 'failure'
+        continue-on-error: true
+        env:
+          PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+        run: |
+          MSG="Scout FAILED (${{ github.run_number }}). Sheet untouched. Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -G "https://api.callmebot.com/whatsapp.php" --data-urlencode "phone=$PHONE" --data-urlencode "text=$MSG" --data-urlencode "apikey=$APIKEY" --max-time 30
+
+      - name: Email failure alert
+        if: steps.run.outcome == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[Scout FAILED] run ${{ github.run_number }}"
+          to: ${{ secrets.MAIL_TO }}
+          from: Hackathon Scout
+          body: |
+            Scout run failed.
+            Repo: ${{ github.repository }}
+            Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Artifacts contain raw_*.json + summary.json for forensics.
+
+      - name: Open tracking issue on failure
+        if: steps.run.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Scout failed – run ${context.runNumber}`,
+              body: `Logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\nCheck artifacts (raw_*.json) to see which platform broke. Likely a selector/layout change – see src/scrapers/.`
+            });
