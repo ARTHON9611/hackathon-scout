@@ -49,25 +49,15 @@ jobs:
             data/dryrun_rows.json
           if-no-files-found: warn
 
-      # ---------- SUCCESS PATH: WhatsApp only, email = fallback ----------
-      # Each notifier is skipped cleanly while its secrets are empty/placeholder.
-      - name: WhatsApp success ping
-        id: wa_ok
-        if: steps.run.outcome == 'success' && secrets.CALLMEBOT_PHONE != '' && secrets.CALLMEBOT_PHONE != 'TODO' && secrets.CALLMEBOT_APIKEY != '' && secrets.CALLMEBOT_APIKEY != 'TODO'
-        continue-on-error: true
-        env:
-          PHONE: ${{ secrets.CALLMEBOT_PHONE }}
-          APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+      # ---------- NOTIFY: email only (WhatsApp removed, Telegram optional later) ----------
+      - name: Read summary counts
+        id: summary
+        if: steps.run.outcome == 'success'
         run: |
-          MSG=$(cat data/whatsapp.txt)
-          # urlencode via python
-          ENC=$(python -c "import urllib.parse,sys; print(urllib.parse.quote(open('data/whatsapp.txt',encoding='utf-8').read()))")
-          RESP=$(curl -s -G "https://api.callmebot.com/whatsapp.php" --data-urlencode "phone=$PHONE" --data-urlencode "text=$MSG" --data-urlencode "apikey=$APIKEY" --max-time 30)
-          echo "$RESP"
-          echo "$RESP" | grep -qi "message queued\|sent" || (echo "CallMeBot did not confirm queue" && exit 1)
+          python -c "import json; d=json.load(open('data/summary.json')); print(f\"found={d.get('found_total',0)}\"); print(f\"new={d.get('sheet_new',0)}\"); print(f\"upd={d.get('sheet_updated',0)}\")" >> "$GITHUB_OUTPUT"
 
-      - name: Email fallback (only if WhatsApp failed)
-        if: steps.run.outcome == 'success' && steps.wa_ok.outcome == 'failure' && secrets.MAIL_USERNAME != '' && secrets.MAIL_USERNAME != 'TODO' && secrets.MAIL_PASSWORD != '' && secrets.MAIL_PASSWORD != 'TODO'
+      - name: Email success summary
+        if: steps.run.outcome == 'success' && secrets.MAIL_USERNAME != '' && secrets.MAIL_USERNAME != 'TODO' && secrets.MAIL_PASSWORD != '' && secrets.MAIL_PASSWORD != 'TODO'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -75,23 +65,12 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "[Scout fallback] WhatsApp failed – summary inside"
+          subject: "[Scout] found ${{ steps.summary.outputs.found }} | +${{ steps.summary.outputs.new }} new ~${{ steps.summary.outputs.upd }} updated"
           to: ${{ secrets.MAIL_TO }}
           from: Hackathon Scout
           html_body: file://data/email.html
 
-      # ---------- FAILURE PATH: BOTH WhatsApp + Email ----------
-      - name: WhatsApp failure alert
-        id: wa_fail
-        if: steps.run.outcome == 'failure' && secrets.CALLMEBOT_PHONE != '' && secrets.CALLMEBOT_PHONE != 'TODO' && secrets.CALLMEBOT_APIKEY != '' && secrets.CALLMEBOT_APIKEY != 'TODO'
-        continue-on-error: true
-        env:
-          PHONE: ${{ secrets.CALLMEBOT_PHONE }}
-          APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
-        run: |
-          MSG="Scout FAILED (${{ github.run_number }}). Sheet untouched. Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -s -G "https://api.callmebot.com/whatsapp.php" --data-urlencode "phone=$PHONE" --data-urlencode "text=$MSG" --data-urlencode "apikey=$APIKEY" --max-time 30
-
+      # ---------- FAILURE PATH: email ----------
       - name: Email failure alert
         if: steps.run.outcome == 'failure' && secrets.MAIL_USERNAME != '' && secrets.MAIL_USERNAME != 'TODO' && secrets.MAIL_PASSWORD != '' && secrets.MAIL_PASSWORD != 'TODO'
         uses: dawidd6/action-send-mail@v3

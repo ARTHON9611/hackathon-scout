@@ -1,6 +1,6 @@
 # Hackathon Scout 🏴‍☠️
 
-Automated AI + Blockchain hackathon tracker: scrapes **Devpost, DoraHacks (priority), Devfolio** twice daily and upserts to Google Sheets (`AI | Blockchain | _Meta` tabs). Alerts via **WhatsApp (CallMeBot) on success, WhatsApp + Email on failure, Email fallback if WhatsApp fails**.
+Automated AI + Blockchain hackathon tracker: scrapes **Devpost, DoraHacks (priority), Devfolio** twice daily and upserts to Google Sheets (`AI | Blockchain | _Meta` tabs). Alerts via **email on every run (summary) + on failure**. (WhatsApp/Telegram can be added later.)
 
 ## One-time setup (15 min)
 
@@ -13,7 +13,6 @@ Automated AI + Blockchain hackathon tracker: scrapes **Devpost, DoraHacks (prior
    - `GCP_SERVICE_ACCOUNT_JSON` (full JSON content)
    - `DORAHACKS_SEED_URLS` (optional, comma-separated fallback URLs)
    - `MAIL_USERNAME` (gmail), `MAIL_PASSWORD` (**App Password**: Google → Security → 2-Step → App passwords), `MAIL_TO`
-   - `CALLMEBOT_PHONE` (`91xxxxxxxxxx`), `CALLMEBOT_APIKEY` (WhatsApp `I allow callmebot to send me messages` to +34 644 71 27 82)
 3. Push → Actions → `scout.yml` runs `30 3,13 * * *` (9AM/7PM IST) + manual dispatch.
 
 ## Local run
