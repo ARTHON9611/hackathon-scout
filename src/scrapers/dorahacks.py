@@ -89,8 +89,11 @@ def parse_api_item(item: dict, now: int) -> list:
     if "/hackathon/None" in link:
         return []
     prize = _prize(item)
+    end = int(item.get("timeline_end") or 0)
+    days = max(0, (end - now) // 86400) if end else None
     return [
-        Hackathon(name=title, platform=PLATFORM, tech_stack=t, status=status, prize_pool=prize, link=link)
+        Hackathon(name=title, platform=PLATFORM, tech_stack=t, status=status,
+                  prize_pool=prize, link=link, deadline_days=days)
         for t in sorted(tracks)
     ]
 

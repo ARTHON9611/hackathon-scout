@@ -17,6 +17,38 @@ def _clean_prize(html: str) -> str:
     return text or "Not specified"
 
 
+def _days_left(item: dict) -> int | None:
+    """Parse '20 days left' / 'about 1 month left' / fallback to end date of
+    'Jul 31 - Oct 01, 2026'. Returns int days or None."""
+    s = (item.get("time_left_to_submission") or "").lower()
+    m = re.search(r"(\d+)\s*hour", s)
+    if m:
+        return 0
+    m = re.search(r"(\d+)\s*day", s)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"(\d+)\s*week", s)
+    if m:
+        return int(m.group(1)) * 7
+    m = re.search(r"(\d+)\s*month", s)
+    if m:
+        return int(m.group(1)) * 30
+    # fallback: end date in "Jul 31 - Oct 01, 2026"
+    dates = (item.get("submission_period_dates") or "")
+    m = re.search(r"-\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})", dates)
+    if m:
+        try:
+            from dateutil import parser as _dp
+            from datetime import datetime, timezone
+            end = _dp.parse(m.group(1))
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            return max(0, (end - datetime.now(timezone.utc)).days)
+        except Exception:
+            return None
+    return None
+
+
 def _status(item: dict) -> str:
     state = (item.get("open_state") or "").lower()  # open | upcoming | ended
     if state == "open":
@@ -56,8 +88,10 @@ def parse(item: dict) -> list:
         status = f"Open ({status_detail})" if status == "Open" else status
         # normalize back to Open/Upcoming for sheet consistency
         status = "Open" if status.startswith("Open") else status
+    days = _days_left(item)
     return [
-        Hackathon(name=title, platform=PLATFORM, tech_stack=t, status=status, prize_pool=prize, link=link)
+        Hackathon(name=title, platform=PLATFORM, tech_stack=t, status=status,
+                  prize_pool=prize, link=link, deadline_days=days)
         for t in sorted(tracks)
     ]
 

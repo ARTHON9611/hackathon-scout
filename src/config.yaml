@@ -18,7 +18,7 @@ sheets:
   ai_tab: "AI"
   blockchain_tab: "Blockchain"
   meta_tab: "_Meta"
-  header: ["Hackathon Name", "Platform", "Tech Stack", "Status", "Prize Pool", "Link", "Last_Updated"]
+  header: ["Hackathon Name", "Platform", "Tech Stack", "Status", "Prize Pool", "Days Left", "Link", "Last_Updated"]
 
 dorahacks:
   # L1 prod JSON API (reverse-engineered from Nuxt bundle 2026-09):

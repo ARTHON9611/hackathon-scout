@@ -10,6 +10,9 @@ class Hackathon(BaseModel):
     status: str  # Open | Upcoming | Closed (we only push Open/Upcoming, Closed kept on update)
     prize_pool: str = "Not specified"
     link: str
+    # Days until submissions close. int -> Sheets stores a NUMBER (sorts
+    # correctly); None -> blank cell (sinks to bottom on ascending sort).
+    deadline_days: int | None = None
 
     @field_validator("link")
     @classmethod
@@ -31,4 +34,6 @@ class Hackathon(BaseModel):
 
     def row(self) -> list:
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        return [self.name, self.platform, self.tech_stack, self.status, self.prize_pool, self.link, today]
+        days = self.deadline_days if self.deadline_days is not None else ""
+        return [self.name, self.platform, self.tech_stack, self.status,
+                self.prize_pool, days, self.link, today]

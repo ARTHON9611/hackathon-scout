@@ -3,7 +3,9 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 
-HEADER = ["Hackathon Name", "Platform", "Tech Stack", "Status", "Prize Pool", "Link", "Last_Updated"]
+HEADER = ["Hackathon Name", "Platform", "Tech Stack", "Status", "Prize Pool",
+          "Days Left", "Link", "Last_Updated"]
+DAYS_COL_INDEX = 5  # 0-based -> column F; stored as NUMBER, blanks sink to bottom
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 
@@ -24,14 +26,27 @@ def _ensure_ws(sh, title: str):
         ws = sh.worksheet(title)
     except gspread.WorksheetNotFound:
         ws = sh.add_worksheet(title=title, rows=1000, cols=len(HEADER))
-        ws.update("A1:G1", [HEADER])
+        ws.update("A1:H1", [HEADER])
         return ws
     vals = ws.get_all_values()
     if not vals:
-        ws.update("A1:G1", [HEADER])
+        ws.update("A1:H1", [HEADER])
     elif vals[0] != HEADER:
-        ws.update("A1:G1", [HEADER])
+        ws.update("A1:H1", [HEADER])
     return ws
+
+
+def _sort_by_days(sh, ws):
+    """Soonest-closing on top. sortRange from row 2 keeps the header fixed;
+    ascending order always puts blank cells last."""
+    try:
+        sh.batch_update({"requests": [{
+            "sortRange": {
+                "range": {"sheetId": ws.id, "startRowIndex": 1},
+                "sortSpecs": [{"dimensionIndex": DAYS_COL_INDEX, "sortOrder": "ASCENDING"}],
+            }}]})
+    except Exception:
+        pass  # sorting is cosmetic — never fail a run over it
 
 
 def upsert(rows_by_tab: dict, spreadsheet_id: str) -> dict:
@@ -55,7 +70,7 @@ def upsert(rows_by_tab: dict, spreadsheet_id: str) -> dict:
                 r = link_to_row[key]
                 # update Status (D), Prize (E), Last_Updated (G); keep name/platform fresh too
                 ws.batch_update([
-                    {"range": f"A{r}:G{r}", "values": [h.row()]}
+                    {"range": f"A{r}:H{r}", "values": [h.row()]}
                 ])
                 updated += 1
             else:
@@ -64,6 +79,7 @@ def upsert(rows_by_tab: dict, spreadsheet_id: str) -> dict:
                 new += 1
         if appends:
             ws.append_rows(appends, value_input_option="USER_ENTERED")
+        _sort_by_days(sh, ws)
         result[tab] = {"new": new, "updated": updated, "total": len(existing) + new}
     # _Meta health tab
     try:
