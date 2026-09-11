@@ -1,6 +1,6 @@
 # --- core HTTP / parsing ---
 requests>=2.31
-beautifulsoup4>=4.12
+beautifulsoup4>=4.15.0
 lxml>=4.9; python_version < "3.14"
 # --- sheets / google ---
 gspread>=6.0
