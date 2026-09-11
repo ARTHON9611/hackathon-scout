@@ -19,6 +19,18 @@ def build_summary(all_rows: list, per_platform: dict, errors: list, sheet_result
         if h.link not in seen:
             seen.add(h.link)
             urgent_unique.append(h)
+
+    def _entry(h):
+        return {"name": h.name, "platform": h.platform, "prize": h.prize_pool,
+                "link": h.link, "track": h.tech_stack, "days": h.deadline_days}
+
+    def _sort_key(h):
+        return (h.deadline_days is None, h.deadline_days if h.deadline_days is not None else 0, h.name)
+
+    by_platform = {}
+    for plat in ["DoraHacks", "Devpost", "Devfolio"]:  # priority order
+        rows = sorted((h for h in all_rows if h.platform == plat), key=_sort_key)
+        by_platform[plat] = [_entry(h) for h in rows]
     return {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "found_total": len(all_rows),
@@ -34,6 +46,7 @@ def build_summary(all_rows: list, per_platform: dict, errors: list, sheet_result
              "link": h.link, "track": h.tech_stack, "days": h.deadline_days}
             for h in urgent_unique
         ],
+        "by_platform": by_platform,
         "top_new": [
             {"name": h.name, "platform": h.platform, "prize": h.prize_pool, "link": h.link, "track": h.tech_stack}
             for h in all_rows[:8]
@@ -59,31 +72,46 @@ def write_artifacts(summary: dict, slot_label: str, sheet_url: str):
     )
     (DATA / "whatsapp.txt").write_text(wa[:900], encoding="utf-8")
 
-    rows = "".join(
-        f"<li><b>{t['name']}</b> [{t['track']}/{t['platform']}] {t['prize']} – "
-        f"<a href='{t['link']}'>{t['link']}</a></li>"
-        for t in summary.get("top_new", [])
-    )
     urgent = summary.get("urgent", [])
-    if urgent:
-        urgent_rows = "".join(
-            f"<li><b>{t['name']}</b> [{t['track']}/{t['platform']}] – "
-            f"closes in <b>{t['days']} day{'s' if t['days'] != 1 else ''}</b> – {t['prize']} – "
-            f"<a href='{t['link']}'>Open</a></li>"
-            for t in urgent
+    by_platform = summary.get("by_platform", {})
+
+    th = ("<th style='border:1px solid #ccc;padding:6px;background:#f2f2f2;text-align:left;'>")
+    td = "<td style='border:1px solid #ccc;padding:6px;'>"
+
+    def _days_cell(d):
+        return f"{td}{d} day{'s' if d != 1 else ''}</td>" if d is not None else f"{td}—</td>"
+
+    def _table(rows, show_platform=False):
+        head = (f"<table style='border-collapse:collapse;width:100%;font-size:14px;'>"
+                f"<tr>{th}Hackathon</th>{th}Track</th>"
+                + (f"{th}Platform</th>" if show_platform else "")
+                + f"{th}Days Left</th>{th}Prize</th>{th}Link</th></tr>")
+        body = "".join(
+            f"<tr>{td}<b>{t['name']}</b></td>{td}{t['track']}</td>"
+            + (f"{td}{t['platform']}</td>" if show_platform else "")
+            + f"{_days_cell(t.get('days'))}{td}{t['prize']}</td>"
+            f"{td}<a href='{t['link']}'>Open</a></td></tr>"
+            for t in rows
         )
+        return head + body + "</table>"
+
+    if urgent:
         urgent_html = (f"<h3 style='color:#b3261e;'>Closing in the next 0-4 days ({len(urgent)})</h3>"
-                       f"<ul>{urgent_rows}</ul>")
+                       + _table(urgent, show_platform=True))
     else:
-        urgent_html = "<h3>Closing in the next 0-4 days (0)</h3><p>Nothing urgent — all deadlines are 5+ days out.</p>"
+        urgent_html = ("<h3>Closing in the next 0-4 days (0)</h3>"
+                       "<p>Nothing urgent — all deadlines are 5+ days out.</p>")
+
+    groups_html = ""
+    for plat, rows in by_platform.items():
+        if not rows:
+            continue
+        groups_html += f"<h3>{plat} ({len(rows)})</h3>" + _table(rows)
+
     html = f"""<h2>Hackathon Scout – {slot_label}</h2>
 {urgent_html}
-<p>Found: {summary['found_total']} (AI {summary['ai_count']}, Blockchain {summary['blockchain_count']}) |
-Sheet: +{new} new, ~{upd} updated</p>
-<p>Per platform: {json.dumps(summary.get('per_platform', {}))}</p>
-<p>Errors: {summary.get('errors') or 'none'}</p>
-<h3>Top matches</h3>
-<ul>{rows or '<li>No new matches this run.</li>'}</ul>
-<p>Sheet: <a href='{sheet_url}'>{sheet_url}</a></p>"""
+<h3>All hackathons by platform (sorted: soonest closing first)</h3>
+{groups_html}
+<p>Full sheet: <a href='{sheet_url}'>Open Google Sheet</a></p>"""
     (DATA / "email.html").write_text(html, encoding="utf-8")
     return summary
