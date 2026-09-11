@@ -4,7 +4,7 @@ beautifulsoup4>=4.12
 lxml>=4.9; python_version < "3.14"
 # --- sheets / google ---
 gspread>=6.0
-google-auth>=2.20
+google-auth>=2.57.1
 # --- data / resilience ---
 pydantic>=2.5
 tenacity>=8.2
