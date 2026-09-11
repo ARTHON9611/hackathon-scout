@@ -63,7 +63,7 @@ jobs:
         id: summary
         if: steps.run.outcome == 'success'
         run: |
-          python -c "import json; d=json.load(open('data/summary.json')); print(f\"found={d.get('found_total',0)}\"); print(f\"new={d.get('sheet_new',0)}\"); print(f\"upd={d.get('sheet_updated',0)}\")" >> "$GITHUB_OUTPUT"
+          python -c "import json; d=json.load(open('data/summary.json')); print(f\"found={d.get('found_total',0)}\"); print(f\"new={d.get('sheet_new',0)}\"); print(f\"upd={d.get('sheet_updated',0)}\"); print(f\"urgent={len(d.get('urgent',[]))}\")" >> "$GITHUB_OUTPUT"
 
       - name: Email success summary
         if: steps.run.outcome == 'success' && steps.mailcfg.outputs.enabled == 'true'
@@ -74,7 +74,7 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "[Scout] found ${{ steps.summary.outputs.found }} | +${{ steps.summary.outputs.new }} new ~${{ steps.summary.outputs.upd }} updated"
+          subject: "[Scout] found ${{ steps.summary.outputs.found }} | +${{ steps.summary.outputs.new }} new ~${{ steps.summary.outputs.upd }} updated | ${{ steps.summary.outputs.urgent }} closing in 0-4d"
           to: ${{ secrets.MAIL_TO }}
           from: Hackathon Scout
           html_body: file://data/email.html
