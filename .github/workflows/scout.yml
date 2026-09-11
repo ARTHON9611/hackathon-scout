@@ -67,7 +67,7 @@ jobs:
 
       - name: Email success summary
         if: steps.run.outcome == 'success' && steps.mailcfg.outputs.enabled == 'true'
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v20
         with:
           server_address: smtp.gmail.com
           server_port: 465
@@ -82,7 +82,7 @@ jobs:
       # ---------- FAILURE PATH: email ----------
       - name: Email failure alert
         if: steps.run.outcome == 'failure' && steps.mailcfg.outputs.enabled == 'true'
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v20
         with:
           server_address: smtp.gmail.com
           server_port: 465
