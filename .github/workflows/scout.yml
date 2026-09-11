@@ -50,6 +50,15 @@ jobs:
           if-no-files-found: warn
 
       # ---------- NOTIFY: email only (WhatsApp removed, Telegram optional later) ----------
+      # secrets.* can't be used in `if:` — gate via a shell check into step outputs.
+      - name: Check mail configured
+        id: mailcfg
+        if: always()
+        env:
+          U: ${{ secrets.MAIL_USERNAME }}
+          P: ${{ secrets.MAIL_PASSWORD }}
+        run: |
+          if [ -n "$U" ] && [ "$U" != "TODO" ] && [ -n "$P" ] && [ "$P" != "TODO" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"; else echo "enabled=false" >> "$GITHUB_OUTPUT"; fi
       - name: Read summary counts
         id: summary
         if: steps.run.outcome == 'success'
@@ -57,7 +66,7 @@ jobs:
           python -c "import json; d=json.load(open('data/summary.json')); print(f\"found={d.get('found_total',0)}\"); print(f\"new={d.get('sheet_new',0)}\"); print(f\"upd={d.get('sheet_updated',0)}\")" >> "$GITHUB_OUTPUT"
 
       - name: Email success summary
-        if: steps.run.outcome == 'success' && secrets.MAIL_USERNAME != '' && secrets.MAIL_USERNAME != 'TODO' && secrets.MAIL_PASSWORD != '' && secrets.MAIL_PASSWORD != 'TODO'
+        if: steps.run.outcome == 'success' && steps.mailcfg.outputs.enabled == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -72,7 +81,7 @@ jobs:
 
       # ---------- FAILURE PATH: email ----------
       - name: Email failure alert
-        if: steps.run.outcome == 'failure' && secrets.MAIL_USERNAME != '' && secrets.MAIL_USERNAME != 'TODO' && secrets.MAIL_PASSWORD != '' && secrets.MAIL_PASSWORD != 'TODO'
+        if: steps.run.outcome == 'failure' && steps.mailcfg.outputs.enabled == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
