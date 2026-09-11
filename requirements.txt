@@ -1,5 +1,5 @@
 # --- core HTTP / parsing ---
-requests>=2.31
+requests>=2.34.2
 beautifulsoup4>=4.12
 lxml>=4.9; python_version < "3.14"
 # --- sheets / google ---
